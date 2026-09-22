@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Karatasi for production and install it to ~/.local/bin, restarting the running instance.
+# Build Slip for production and install it to ~/.local/bin, restarting the running instance.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -9,10 +9,10 @@ npm run build
 # bundled frontend instead of the Vite dev URL. A plain `cargo build --release` does not.
 npx tauri build --no-bundle
 
-install -Dm755 src-tauri/target/release/karatasi "$HOME/.local/bin/karatasi"
-if pgrep -x karatasi >/dev/null; then
-  pkill -x karatasi
+install -Dm755 src-tauri/target/release/slip "$HOME/.local/bin/slip"
+if pgrep -x slip >/dev/null; then
+  pkill -x slip
   sleep 0.5
 fi
-setsid uwsm-app -- "$HOME/.local/bin/karatasi" start >/dev/null 2>&1 &
-echo "installed $HOME/.local/bin/karatasi and restarted it in the background"
+setsid uwsm-app -- "$HOME/.local/bin/slip" start >/dev/null 2>&1 &
+echo "installed $HOME/.local/bin/slip and restarted it in the background"
