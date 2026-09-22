@@ -2,6 +2,8 @@
 
 Floating markdown notes for [Omarchy](https://omarchy.org). Press Super+N and a pinned note appears over whatever you are doing. Press it again and it is gone.
 
+![Slip open over an Omarchy desktop on an M1 Pro](docs/screenshot.jpg)
+
 Each note is a plain markdown file. Point Slip at a folder named `floating_notes` inside an Obsidian vault and Obsidian shows the same files. Images pasted in Slip are saved under `floating_notes/assets/` and linked as `![](assets/...)`.
 
 Slip is derived from [Karatasi](https://github.com/HemalR/karatasi) by Hemal, used under the MIT license in `LICENSE`.
