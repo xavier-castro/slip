@@ -13,6 +13,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ago, applyTheme, Keymap, watchTheme, type Theme } from "./theme";
 import { RecentNotes } from "./recent-notes";
+import { editorTitle } from "./titles";
 
 // A draft has no id: it lives only in the editor until the first save writes its file.
 interface Note {
@@ -36,7 +37,7 @@ let isMain = win.label === "main" || win.label.startsWith("main-");
 const params = new URLSearchParams(location.search);
 const statusEl = document.getElementById("status")!;
 
-// Editor shortcuts; each can be overridden under `[keys]` in ~/.config/karatasi/config.toml.
+// Editor shortcuts; each can be overridden under `[keys]` in ~/.config/slip/config.toml.
 const DEFAULT_KEYS: Record<string, string[]> = {
   search: ["Ctrl+K", "Ctrl+P"],
   new: ["Ctrl+N"],
@@ -233,10 +234,10 @@ function setDraft(): void {
   setNote({ id: null, title: "Untitled", content: "", modified: now, created: now });
 }
 
-// The backend finds the main window in Hyprland's client list by its exact title "Karatasi"; every other
+// The backend finds the main window in Hyprland's client list by its exact title "Slip"; every other
 // editor window carries its note's title instead.
 function syncTitle(): void {
-  const title = isMain || !current ? "Karatasi" : `Karatasi - ${current.title}`;
+  const title = editorTitle(isMain, current?.title);
   document.title = title;
   void win.setTitle(title);
 }

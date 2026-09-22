@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "karatasi",
+  "productName": "slip",
   "version": "0.1.0",
-  "identifier": "dev.hemalr.karatasi",
+  "identifier": "local.xavier.slip",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Karatasi",
+        "title": "Slip",
         "url": "index.html",
         "width": 960,
         "height": 720,
@@ -24,7 +24,7 @@
       },
       {
         "label": "switcher",
-        "title": "Karatasi Search",
+        "title": "Slip Search",
         "url": "switcher.html",
         "width": 680,
         "height": 440,

@@ -1700,21 +1700,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "karatasi"
-version = "0.1.0"
-dependencies = [
- "dirs",
- "notify",
- "nucleo-matcher",
- "percent-encoding",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "toml 0.9.12+spec-1.1.0",
-]
-
-[[package]]
 name = "keyboard-types"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2924,6 +2909,21 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
+
+[[package]]
+name = "slip"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+ "notify",
+ "nucleo-matcher",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "toml 0.9.12+spec-1.1.0",
+]
 
 [[package]]
 name = "smallvec"

@@ -30,11 +30,17 @@ pub struct Config {
     pub keys: HashMap<String, Vec<String>>,
 }
 
-pub fn config_path() -> PathBuf {
-    dirs::config_dir().unwrap_or_default().join("karatasi/config.toml")
+pub fn default_notes_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_default()
+        .join("Documents/xavier-obsidian/floating_notes")
 }
 
-/// Optional ~/.config/karatasi/config.toml: notes_dir, font, font_size and a `[keys]` table.
+pub fn config_path() -> PathBuf {
+    dirs::config_dir().unwrap_or_default().join("slip/config.toml")
+}
+
+/// Optional ~/.config/slip/config.toml: notes_dir, font, font_size and a `[keys]` table.
 pub fn config() -> Config {
     let Ok(text) = fs::read_to_string(config_path()) else { return Config::default() };
     let Ok(table) = text.parse::<toml::Table>() else { return Config::default() };
@@ -123,5 +129,25 @@ pub fn load() -> Theme {
         font,
         font_size: cfg.font_size.unwrap_or(16),
         keys: cfg.keys,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_notes_dir_is_the_obsidian_floating_notes_folder() {
+        let dir = default_notes_dir();
+        assert!(
+            dir.ends_with("Documents/xavier-obsidian/floating_notes"),
+            "{dir:?}"
+        );
+    }
+
+    #[test]
+    fn config_file_lives_under_slip() {
+        let path = config_path();
+        assert!(path.ends_with("slip/config.toml"), "{path:?}");
     }
 }

@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn attach_writes_under_assets_and_never_overwrites() {
-        let dir = std::env::temp_dir().join(format!("karatasi-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("slip-test-{}", std::process::id()));
         let store = Store::open(dir.clone());
         let first = store.attach("Grocery list", "png", b"one").unwrap();
         let second = store.attach("Grocery list", "png", b"two").unwrap();

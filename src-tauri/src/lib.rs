@@ -18,6 +18,19 @@ use tauri::{http, AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowB
 use store::{Hit, Note, NoteMeta, Store};
 use theme::Theme;
 
+pub const WINDOW_CLASS: &str = "slip";
+pub const TITLE_MAIN: &str = "Slip";
+pub const TITLE_SEARCH: &str = "Slip Search";
+pub const TITLE_TILED: &str = "Slip Tiled";
+pub const WELCOME_ID: &str = "welcome-to-slip";
+
+pub fn editor_title(is_main: bool, note_title: Option<&str>) -> String {
+    match (is_main, note_title.filter(|t| !t.is_empty())) {
+        (false, Some(title)) => format!("{TITLE_MAIN} - {title}"),
+        _ => TITLE_MAIN.to_string(),
+    }
+}
+
 pub struct AppState {
     store: Mutex<Store>,
     /// Action given on the command line at launch (show, toggle, search, new, start, hide).
@@ -50,7 +63,7 @@ struct Changed {
 fn last_note_path() -> PathBuf {
     dirs::state_dir()
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".local/state"))
-        .join("karatasi/last-note")
+        .join("slip/last-note")
 }
 
 /// The onboarding note, written on first run so an empty notes folder is never a blank screen.
@@ -59,16 +72,14 @@ const WELCOME: &str = include_str!("../assets/welcome.md");
 fn open_store() -> Store {
     let mut store = Store::open(notes_dir());
     if store.list().is_empty() {
-        let _ = fs::write(store.path_of("welcome-to-karatasi"), WELCOME);
+        let _ = fs::write(store.path_of(WELCOME_ID), WELCOME);
         store.reload_all();
     }
     store
 }
 
 fn notes_dir() -> PathBuf {
-    theme::config()
-        .notes_dir
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("Notes"))
+    theme::config().notes_dir.unwrap_or_else(theme::default_notes_dir)
 }
 
 // ---------- commands ----------
@@ -144,7 +155,7 @@ fn delete_note(app: AppHandle, state: State<AppState>, window: tauri::WebviewWin
 /// a low-urgency toast up for about five seconds; libnotify then prints the action's id.
 fn undo_toast(title: &str) -> bool {
     let out = std::process::Command::new("notify-send")
-        .args(["-a", "Karatasi", "-i", "karatasi", "-u", "low", "-t", "5000", "-e", "-A", "default=Undo"])
+        .args(["-a", TITLE_MAIN, "-i", WINDOW_CLASS, "-u", "low", "-t", "5000", "-e", "-A", "default=Undo"])
         .arg("Note deleted")
         .arg(format!("{title} · click to undo"))
         .output();
@@ -248,15 +259,15 @@ fn mime_of(path: &Path) -> &'static str {
     IMAGE_TYPES.iter().find(|(_, e)| *e == ext).map(|(mime, _)| *mime).unwrap_or("application/octet-stream")
 }
 
-/// Debug aid: with KARATASI_DEBUG=1 in the environment, dump text to $XDG_RUNTIME_DIR/karatasi-debug-<name>.txt.
+/// Debug aid: with SLIP_DEBUG=1 in the environment, dump text to $XDG_RUNTIME_DIR/slip-debug-<name>.txt.
 #[tauri::command]
 fn debug_dump(name: String, text: String) {
-    if std::env::var_os("KARATASI_DEBUG").is_none() {
+    if std::env::var_os("SLIP_DEBUG").is_none() {
         return;
     }
     let path = dirs::runtime_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join(format!("karatasi-debug-{}.txt", store::slug(&name)));
+        .join(format!("slip-debug-{}.txt", store::slug(&name)));
     let _ = fs::write(path, text);
 }
 
@@ -344,7 +355,7 @@ fn new_in_main(app: AppHandle) {
 #[tauri::command]
 fn open_note_window(app: AppHandle, id: String) -> Result<(), String> {
     let label = format!("note-{}", store::slug(&id));
-    build_note_window(&app, &label, &format!("index.html?note={}", urlencode(&id)), "Karatasi")?;
+    build_note_window(&app, &label, &format!("index.html?note={}", urlencode(&id)), TITLE_MAIN)?;
     hide_switcher(app);
     Ok(())
 }
@@ -364,8 +375,8 @@ fn open_new_note_window(app: AppHandle, state: State<AppState>) -> Result<(), St
         *gen += 1;
         *gen
     };
-    // "Karatasi Tiled" dodges the float rule; the window retitles itself to "Karatasi - <note>" on load.
-    build_note_window(&app, &format!("note-new-{n}"), "index.html?new=1", if tiled { "Karatasi Tiled" } else { "Karatasi" })
+    // "Slip Tiled" dodges the float rule; the window retitles itself to "Slip - <note>" on load.
+    build_note_window(&app, &format!("note-new-{n}"), "index.html?new=1", if tiled { TITLE_TILED } else { TITLE_MAIN })
 }
 
 /// No window has a minimum size. Hyprland can tile a window narrower than any minimum, and GTK
@@ -452,6 +463,7 @@ fn open_switcher(app: &AppHandle) {
         .map(|w| w.label().to_string());
     *app.state::<AppState>().switcher_origin.lock().unwrap() = origin;
     if let Some(w) = app.get_webview_window("switcher") {
+        let _ = w.set_title(TITLE_SEARCH);
         let _ = w.center();
         let _ = w.show();
         let _ = w.set_focus();
@@ -464,8 +476,8 @@ fn main_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
     app.get_webview_window(&label)
 }
 
-/// Whether Hyprland currently has the main window tiled. Karatasi windows can only be told apart by
-/// title: the main is the one titled exactly "Karatasi", every other editor window carries its note's
+/// Whether Hyprland currently has the main window tiled. Slip windows can only be told apart by
+/// title: the main is the one titled exactly "Slip", every other editor window carries its note's
 /// title. Anything unexpected (no Hyprland, no hyprctl) counts as floating.
 fn main_is_tiled() -> bool {
     let Ok(out) = std::process::Command::new("hyprctl").args(["clients", "-j"]).output() else {
@@ -476,7 +488,7 @@ fn main_is_tiled() -> bool {
     };
     clients
         .as_array()
-        .map(|cs| cs.iter().any(|c| c["class"] == "karatasi" && c["title"] == "Karatasi" && c["floating"] == false))
+        .map(|cs| cs.iter().any(|c| c["class"] == WINDOW_CLASS && c["title"] == TITLE_MAIN && c["floating"] == false))
         .unwrap_or(false)
 }
 
@@ -484,7 +496,7 @@ fn hypr_dispatch(lua: &str) {
     let _ = std::process::Command::new("hyprctl").args(["dispatch", lua]).output();
 }
 
-/// Whether the focused Hyprland window is a tiled Karatasi window (a keystroke in Karatasi comes from the
+/// Whether the focused Hyprland window is a tiled Slip window (a keystroke in Slip comes from the
 /// focused window). Unknown counts as floating.
 fn hypr_active_is_tiled_window() -> bool {
     let Ok(out) = std::process::Command::new("hyprctl").args(["activewindow", "-j"]).output() else {
@@ -493,7 +505,7 @@ fn hypr_active_is_tiled_window() -> bool {
     let Ok(c) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else {
         return false;
     };
-    c["class"] == "karatasi" && c["floating"] == false
+    c["class"] == WINDOW_CLASS && c["floating"] == false
 }
 
 /// Spawn a fresh floating main window, opening `note` or a new note, and hand it the main role.
@@ -510,7 +522,7 @@ fn spawn_main(app: &AppHandle, note: Option<&str>) -> tauri::Result<tauri::Webvi
         None => "index.html?new=1".to_string(),
     };
     let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
-        .title("Karatasi")
+        .title(editor_title(true, None))
         .inner_size(960.0, 720.0)
         .decorations(false)
         .center()
@@ -559,7 +571,7 @@ fn toggle_main(app: &AppHandle) {
 fn handle_action(app: &AppHandle, action: &str) {
     match action {
         "toggle" => toggle_main(app),
-        // Super W: the focused Karatasi window decides for itself (main hides, a note window closes).
+        // Super W: the focused Slip window decides for itself (main hides, a note window closes).
         // Without a focused window, fall back to hiding the main and the switcher.
         "hide" => {
             let focused = app.webview_windows().into_values().find(|w| w.is_focused().unwrap_or(false));
@@ -603,7 +615,7 @@ fn action_from_args(args: &[String]) -> String {
 fn socket_path() -> PathBuf {
     dirs::runtime_dir()
         .unwrap_or_else(std::env::temp_dir)
-        .join("karatasi.sock")
+        .join("slip.sock")
 }
 
 /// Hand the action to an already running instance. Returns false when there is none.
@@ -647,13 +659,13 @@ fn serve_actions(app: AppHandle) -> std::io::Result<()> {
 // ---------- memory cap ----------
 
 /// Re-exec the primary inside a transient systemd scope with a hard memory limit, so a runaway
-/// leak can only ever kill Karatasi, never the session. Returns true when the child ran in our place.
+/// leak can only ever kill Slip, never the session. Returns true when the child ran in our place.
 fn relaunch_in_capped_scope(args: &[String]) -> bool {
-    if std::env::var_os("KARATASI_SCOPED").is_some() {
+    if std::env::var_os("SLIP_SCOPED").is_some() {
         return false;
     }
     let Ok(exe) = std::env::current_exe() else { return false };
-    let cap = std::env::var("KARATASI_MEMORY_MAX").unwrap_or_else(|_| "1500M".to_string());
+    let cap = std::env::var("SLIP_MEMORY_MAX").unwrap_or_else(|_| "1500M".to_string());
     let status = std::process::Command::new("systemd-run")
         .args([
             "--user",
@@ -661,10 +673,10 @@ fn relaunch_in_capped_scope(args: &[String]) -> bool {
             "--quiet",
             "--collect",
             "--slice=app-graphical.slice",
-            "--description=karatasi",
+            "--description=slip",
             &format!("-pMemoryMax={cap}"),
             "-pMemorySwapMax=0",
-            "--setenv=KARATASI_SCOPED=1",
+            "--setenv=SLIP_SCOPED=1",
             "--",
         ])
         .arg(exe)
@@ -673,7 +685,7 @@ fn relaunch_in_capped_scope(args: &[String]) -> bool {
     match status {
         Ok(_) => true,
         Err(e) => {
-            eprintln!("karatasi: systemd-run unavailable ({e}); running without a memory cap");
+            eprintln!("slip: systemd-run unavailable ({e}); running without a memory cap");
             false
         }
     }
@@ -713,7 +725,7 @@ fn start_watcher(app: AppHandle) -> notify::Result<RecommendedWatcher> {
     })?;
     watcher.watch(&dir, RecursiveMode::NonRecursive)?;
     let _ = watcher.watch(&state_dir, RecursiveMode::NonRecursive);
-    // Editing ~/.config/karatasi/config.toml re-applies font and keys without a restart.
+    // Editing ~/.config/slip/config.toml re-applies font and keys without a restart.
     if let Some(config_dir) = theme::config_path().parent() {
         let _ = fs::create_dir_all(config_dir);
         let _ = watcher.watch(config_dir, RecursiveMode::NonRecursive);
@@ -747,11 +759,11 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             if let Err(e) = serve_actions(handle.clone()) {
-                eprintln!("karatasi: could not listen on {}: {e}", socket_path().display());
+                eprintln!("slip: could not listen on {}: {e}", socket_path().display());
             }
             match start_watcher(handle.clone()) {
                 Ok(w) => *app.state::<AppState>().watcher.lock().unwrap() = Some(w),
-                Err(e) => eprintln!("karatasi: file watcher unavailable: {e}"),
+                Err(e) => eprintln!("slip: file watcher unavailable: {e}"),
             }
             Ok(())
         })
@@ -781,5 +793,22 @@ pub fn run() {
         ])
         .register_uri_scheme_protocol("note-asset", |ctx, request| serve_asset(ctx.app_handle(), &request))
         .run(tauri::generate_context!())
-        .expect("error while running karatasi");
+        .expect("error while running slip");
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    #[test]
+    fn window_identity_matches_slip() {
+        assert_eq!(WINDOW_CLASS, "slip");
+        assert_eq!(TITLE_SEARCH, "Slip Search");
+        assert_eq!(TITLE_TILED, "Slip Tiled");
+        assert_eq!(editor_title(true, Some("Grocery")), "Slip");
+        assert_eq!(editor_title(false, None), "Slip");
+        assert_eq!(editor_title(false, Some("")), "Slip");
+        assert_eq!(editor_title(false, Some("Grocery")), "Slip - Grocery");
+        assert_eq!(WELCOME_ID, "welcome-to-slip");
+    }
 }

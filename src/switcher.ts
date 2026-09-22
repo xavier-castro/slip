@@ -18,7 +18,7 @@ const q = document.getElementById("q") as HTMLInputElement;
 const list = document.getElementById("results")!;
 const statusEl = document.getElementById("status")!;
 
-// Switcher shortcuts; overridable under `[keys]` in ~/.config/karatasi/config.toml.
+// Switcher shortcuts; overridable under `[keys]` in ~/.config/slip/config.toml.
 const DEFAULT_KEYS: Record<string, string[]> = {
   switcher_down: ["Down", "Ctrl+J", "Ctrl+N"],
   switcher_up: ["Up", "Ctrl+K", "Ctrl+P"],
