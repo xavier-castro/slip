@@ -2,7 +2,7 @@
 --
 -- Load this from ~/.config/hypr/hyprland.lua after Omarchy's defaults:
 --
---   dofile("/home/xavier/Work/slip/hypr/slip.lua")
+--   dofile(os.getenv("HOME") .. "/src/slip/hypr/slip.lua")
 --
 -- Set any of these before the dofile line to change the defaults:
 --

@@ -1,0 +1,10 @@
+# Copy to ~/.config/slip/config.toml and edit.
+# notes_dir is where Slip reads and writes markdown. Point it at a folder
+# inside an Obsidian vault and Obsidian shows the same files.
+notes_dir = "~/Documents/your-vault/floating_notes"
+font_size = 16
+
+[keys]
+search = ["Ctrl+K", "Ctrl+P"]
+new = "Ctrl+N"
+delete = "Ctrl+X"

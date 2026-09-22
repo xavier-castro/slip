@@ -33,7 +33,7 @@ pub struct Config {
 pub fn default_notes_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_default()
-        .join("Documents/xavier-obsidian/floating_notes")
+        .join("Documents/floating_notes")
 }
 
 pub fn config_path() -> PathBuf {
@@ -137,12 +137,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_notes_dir_is_the_obsidian_floating_notes_folder() {
+    fn default_notes_dir_is_documents_floating_notes() {
         let dir = default_notes_dir();
-        assert!(
-            dir.ends_with("Documents/xavier-obsidian/floating_notes"),
-            "{dir:?}"
-        );
+        assert!(dir.ends_with("Documents/floating_notes"), "{dir:?}");
     }
 
     #[test]

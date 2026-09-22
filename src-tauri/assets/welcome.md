@@ -1,6 +1,6 @@
 # Welcome to Slip
 
-Floating notes for Omarchy. Every note is a plain markdown file in `~/Documents/xavier-obsidian/floating_notes`, and this one is too, so edit it or delete it. Obsidian shows the same files.
+Floating notes for Omarchy. Every note is a plain markdown file in the notes folder (`~/Documents/floating_notes`, unless `notes_dir` in `~/.config/slip/config.toml` points somewhere else). This file is one of them, so edit it or delete it. Point `notes_dir` at a folder inside an Obsidian vault and Obsidian shows the same files.
 
 ## Keys
 
@@ -17,7 +17,7 @@ Floating notes for Omarchy. Every note is a plain markdown file in `~/Documents/
 - **Esc** or **Super W** hide the window
 - **Super T** tile the window, **Super T** again to float it
 
-Every key above except Super N and Super T can be changed under `[keys]` in `~/.config/slip/config.toml`, for example `delete = "Ctrl+D"`; the README lists the names. To toggle notes with a different key, put a line like this above the `dofile("/home/xavier/Work/slip/hypr/slip.lua")` line in `~/.config/hypr/hyprland.lua`, then reload Hyprland:
+Every key above except Super N and Super T can be changed under `[keys]` in `~/.config/slip/config.toml`, for example `delete = "Ctrl+D"`; the README lists the names. To toggle notes with a different key, put a line like this above the `dofile` that loads `hypr/slip.lua` in `~/.config/hypr/hyprland.lua`, then reload Hyprland:
 
 ```lua
 slip_toggle_key = "SUPER + ALT + N"

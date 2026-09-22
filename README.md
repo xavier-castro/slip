@@ -2,26 +2,67 @@
 
 Floating markdown notes for [Omarchy](https://omarchy.org). Press Super+N and a pinned note appears over whatever you are doing. Press it again and it is gone.
 
+Each note is a plain markdown file. Point Slip at a folder named `floating_notes` inside an Obsidian vault and Obsidian shows the same files. Images pasted in Slip are saved under `floating_notes/assets/` and linked as `![](assets/...)`.
+
 Slip is derived from [Karatasi](https://github.com/HemalR/karatasi) by Hemal, used under the MIT license in `LICENSE`.
 
-Every note is a plain markdown file in `~/Documents/xavier-obsidian/floating_notes`, which is a folder in the open Obsidian vault. Obsidian reads the same files. Images pasted in Slip are saved under `floating_notes/assets/` and linked as `![](assets/...)`.
+## Install on Omarchy (Apple Silicon)
 
-## Install
+Omarchy on a Mac is Arch Linux ARM. These steps are for that machine, where `uname -m` prints `aarch64`. Build Slip on the Mac. An x86_64 binary will not run there.
 
-Requires the Rust toolchain (`~/.cargo/bin`) and the Tauri system libraries (`webkit2gtk-4.1`, `gtk3`).
+`~/.local/bin` is already on `PATH` in a stock Omarchy session. Super+N is free. Super+Shift+N still opens your editor.
+
+### 1. Packages and Rust
 
 ```bash
+sudo pacman -S --needed base-devel webkit2gtk-4.1 gtk3 nodejs npm curl
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+. "$HOME/.cargo/env"
+```
+
+The first release build compiles Tauri and takes a few minutes on an M-series Mac.
+
+### 2. Build and install
+
+```bash
+git clone https://github.com/xavier-castro/slip.git "$HOME/src/slip"
+cd "$HOME/src/slip"
 npm ci
 bash scripts/install.sh
 ```
 
-That builds the binary, installs `~/.local/bin/slip`, and starts it hidden. Then load the Hyprland snippet from `~/.config/hypr/hyprland.lua`, after Omarchy's defaults:
+That installs `~/.local/bin/slip` and starts it hidden. A second `slip` command talks to the running instance, so Hyprland only has to run `slip toggle`.
 
-```lua
-dofile("/home/xavier/Work/slip/hypr/slip.lua")
+### 3. Keep the notes in Obsidian
+
+Create `floating_notes` at the root of your vault, then tell Slip to use it. Replace the vault path with yours:
+
+```bash
+mkdir -p "$HOME/Documents/your-vault/floating_notes"
+mkdir -p "$HOME/.config/slip"
 ```
 
-Set any of these before that line to change the defaults:
+`~/.config/slip/config.toml`:
+
+```toml
+notes_dir = "~/Documents/your-vault/floating_notes"
+```
+
+`config.example.toml` in this repo is the same file with the other knobs. Restart Slip after changing `notes_dir` (`pkill -x slip`, then `slip start`, or run `bash scripts/install.sh` again).
+
+If `notes_dir` is unset, notes go to `~/Documents/floating_notes`. Slip creates the folder on first launch and writes `welcome-to-slip.md` when the folder is empty.
+
+Obsidian reads those files as normal notes. Renaming a note in Slip renames the file. Wikilinks Obsidian already made to the old filename are not rewritten.
+
+### 4. Hyprland
+
+At the bottom of `~/.config/hypr/hyprland.lua`, after Omarchy's defaults:
+
+```lua
+dofile(os.getenv("HOME") .. "/src/slip/hypr/slip.lua")
+```
+
+Use the path you actually cloned into. Set any of these on the lines above that `dofile` to change the defaults:
 
 ```lua
 slip_toggle_key = "SUPER + N"
@@ -29,9 +70,14 @@ slip_close_key = "SUPER + W" -- false to leave Omarchy's close key alone
 slip_autostart = true
 ```
 
-Super+W was Omarchy's close-window binding. The snippet unbinds it. When Slip is focused, Super+W hides Slip. Every other window still closes.
+Super+W is Omarchy's close-window binding. The snippet unbinds it and binds a replacement. When Slip is focused, Super+W hides Slip. Every other window still closes. Escape still hides the main Slip window.
 
-Reload Hyprland after editing the snippet (`hyprctl reload`).
+```bash
+hyprctl reload
+hyprctl configerrors
+```
+
+`configerrors` should be empty. Press Super+N. The window class is `slip`, the title is `Slip`, and the window is floating and pinned. `slip_autostart` starts `slip start` on the next login so the first Super+N is instant. `scripts/install.sh` already starts it for the current session.
 
 ## Keys
 
@@ -57,25 +103,13 @@ The first line is the title, and the file is named after it. A new note is a dra
 
 ## Command line
 
-`slip [show|toggle|hide|search|new|start]`. A second invocation forwards the action to the running instance over a unix socket at `$XDG_RUNTIME_DIR/slip.sock`. `slip start` launches it hidden.
+`slip [show|toggle|hide|search|new|start]`. A second invocation forwards the action to the running instance over `$XDG_RUNTIME_DIR/slip.sock`. `slip start` launches it hidden.
 
 ## Configuration
 
-Optional `~/.config/slip/config.toml`:
+Optional `~/.config/slip/config.toml`. Colors follow the active Omarchy theme. The font is the active Omarchy font, or `JetBrainsMono Nerd Font` when that file is missing. `font_size` defaults to 16.
 
-```toml
-notes_dir = "~/Documents/xavier-obsidian/floating_notes"
-font_size = 16
-
-[keys]
-search = ["Ctrl+K", "Ctrl+P"]
-new = "Ctrl+N"
-delete = "Ctrl+X"
-```
-
-When `notes_dir` is omitted, notes go to `~/Documents/xavier-obsidian/floating_notes`. Colors follow the active Omarchy theme. The font is the active Omarchy font, or `JetBrainsMono Nerd Font` when that file is missing.
-
-The primary instance re-executes itself inside a transient systemd scope with `MemoryMax=1500M` and `MemorySwapMax=0`. Override the cap with `SLIP_MEMORY_MAX`. Set `SLIP_DEBUG=1` to dump editor HTML to `$XDG_RUNTIME_DIR/slip-debug-html.txt` on every note load.
+The primary instance re-executes itself inside a transient systemd user scope with `MemoryMax=1500M` and `MemorySwapMax=0`. Override the cap with `SLIP_MEMORY_MAX`. If `systemd-run` is missing, Slip logs that and keeps running. Set `SLIP_DEBUG=1` to dump editor HTML to `$XDG_RUNTIME_DIR/slip-debug-html.txt` on every note load.
 
 ## Layout
 
