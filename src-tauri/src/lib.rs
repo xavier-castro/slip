@@ -1,3 +1,4 @@
+mod geom;
 mod store;
 mod theme;
 
@@ -6,7 +7,10 @@ use std::{
     io::{Read, Write},
     os::unix::net::{UnixListener, UnixStream},
     path::{Component, Path, PathBuf},
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
     time::Duration,
 };
 
@@ -23,6 +27,10 @@ pub const TITLE_MAIN: &str = "Slip";
 pub const TITLE_SEARCH: &str = "Slip Search";
 pub const TITLE_TILED: &str = "Slip Tiled";
 pub const WELCOME_ID: &str = "welcome-to-slip";
+
+/// Set after Slip itself places the main window. Until then the compositor's
+/// centered first frame must not be written over the default.
+static GEOMETRY_READY: AtomicBool = AtomicBool::new(false);
 
 pub fn editor_title(is_main: bool, note_title: Option<&str>) -> String {
     match (is_main, note_title.filter(|t| !t.is_empty())) {
@@ -523,9 +531,8 @@ fn spawn_main(app: &AppHandle, note: Option<&str>) -> tauri::Result<tauri::Webvi
     };
     let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
         .title(editor_title(true, None))
-        .inner_size(960.0, 720.0)
+        .inner_size(460.0, 420.0)
         .decorations(false)
-        .center()
         .build()?;
     *state.main_label.lock().unwrap() = label;
     Ok(w)
@@ -546,26 +553,204 @@ fn floating_main(app: &AppHandle, note: Option<&str>) -> Option<(tauri::WebviewW
 }
 
 fn show_main(app: &AppHandle) {
-    if let Some((w, false)) = floating_main(app, None) {
-        let _ = w.show();
-        let _ = w.set_focus();
+    if let Some((w, _)) = floating_main(app, None) {
+        reveal_main(&w);
         let _ = w.emit_to(w.label(), "main-shown", ());
     }
 }
 
 fn toggle_main(app: &AppHandle) {
-    if let Some((w, false)) = floating_main(app, None) {
-        let visible = w.is_visible().unwrap_or(false);
-        let focused = w.is_focused().unwrap_or(false);
-        if visible && focused {
+    let Some((w, spawned)) = floating_main(app, None) else { return };
+    if spawned {
+        reveal_main(&w);
+        let _ = w.emit_to(w.label(), "main-shown", ());
+        return;
+    }
+    let client = main_slip_box();
+    let visible = client.as_ref().map(|c| c.mapped && !c.hidden).unwrap_or_else(|| w.is_visible().unwrap_or(false));
+    let focused = match (&client, active_address()) {
+        (Some(c), Some(addr)) => c.address == addr,
+        _ => w.is_focused().unwrap_or(false),
+    };
+    match geom::toggle_action(visible, focused) {
+        geom::ToggleAction::Hide => {
+            if let Some(c) = &client {
+                save_geometry(&c.geometry);
+            }
             let _ = w.emit_to(w.label(), "main-hiding", ());
             let _ = w.hide();
-        } else {
-            let _ = w.show();
+        }
+        geom::ToggleAction::Focus => {
+            if let Some(c) = &client {
+                hypr_focus(&c.address);
+            }
             let _ = w.set_focus();
+        }
+        geom::ToggleAction::Show => {
+            reveal_main(&w);
             let _ = w.emit_to(w.label(), "main-shown", ());
         }
     }
+}
+
+struct SlipBox {
+    address: String,
+    geometry: geom::WindowGeometry,
+    mapped: bool,
+    hidden: bool,
+}
+
+fn hypr_json(args: &[&str]) -> Option<serde_json::Value> {
+    let out = std::process::Command::new("hyprctl").args(args).output().ok()?;
+    serde_json::from_slice(&out.stdout).ok()
+}
+
+fn main_slip_box() -> Option<SlipBox> {
+    let clients = hypr_json(&["clients", "-j"])?;
+    for c in clients.as_array()? {
+        if c["class"] != WINDOW_CLASS || c["title"] != TITLE_MAIN {
+            continue;
+        }
+        let at = c["at"].as_array()?;
+        let size = c["size"].as_array()?;
+        return Some(SlipBox {
+            address: c["address"].as_str()?.to_string(),
+            geometry: geom::WindowGeometry {
+                x: at.first()?.as_i64()? as i32,
+                y: at.get(1)?.as_i64()? as i32,
+                width: size.first()?.as_i64()? as i32,
+                height: size.get(1)?.as_i64()? as i32,
+            },
+            mapped: c["mapped"].as_bool().unwrap_or(true),
+            hidden: c["hidden"].as_bool().unwrap_or(false),
+        });
+    }
+    None
+}
+
+fn active_address() -> Option<String> {
+    hypr_json(&["activewindow", "-j"])?["address"].as_str().map(str::to_string)
+}
+
+fn geometry_path() -> PathBuf {
+    last_note_path().parent().map(|p| p.join("window.json")).unwrap_or_else(|| PathBuf::from("window.json"))
+}
+
+fn load_geometry() -> Option<geom::WindowGeometry> {
+    let g: geom::WindowGeometry = serde_json::from_str(&fs::read_to_string(geometry_path()).ok()?).ok()?;
+    if g.width < 80 || g.height < 80 {
+        return None;
+    }
+    Some(g)
+}
+
+fn save_geometry(g: &geom::WindowGeometry) {
+    if g.width < 80 || g.height < 80 {
+        return;
+    }
+    let path = geometry_path();
+    if let Some(dir) = path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    if let Ok(text) = serde_json::to_string(g) {
+        let _ = fs::write(path, text);
+    }
+}
+
+fn default_for_builtin_monitor() -> geom::WindowGeometry {
+    let Some(monitors) = hypr_json(&["monitors", "-j"]).and_then(|v| v.as_array().cloned()) else {
+        return geom::default_geometry(0, 0, 1512, 945);
+    };
+    // The built-in panel is where the default top-right place was measured. A saved
+    // position still wins, including one the user dragged onto another monitor.
+    let Some(m) = monitors
+        .iter()
+        .find(|m| m["name"].as_str().unwrap_or("").starts_with("eDP"))
+        .or_else(|| monitors.iter().find(|m| m["focused"].as_bool() == Some(true)))
+        .or(monitors.first())
+    else {
+        return geom::default_geometry(0, 0, 1512, 945);
+    };
+    let scale = m["scale"].as_f64().unwrap_or(1.0);
+    let (w, h) = geom::logical_extent(
+        m["width"].as_i64().unwrap_or(1512) as i32,
+        m["height"].as_i64().unwrap_or(945) as i32,
+        scale,
+    );
+    geom::default_geometry(m["x"].as_i64().unwrap_or(0) as i32, m["y"].as_i64().unwrap_or(0) as i32, w, h)
+}
+
+fn hypr_place(address: &str, g: geom::WindowGeometry) {
+    hypr_dispatch(&format!(
+        "hl.dsp.window.resize({{ x = {}, y = {}, relative = false, window = \"address:{address}\" }})",
+        g.width, g.height
+    ));
+    hypr_dispatch(&format!(
+        "hl.dsp.window.move({{ x = {}, y = {}, relative = false, window = \"address:{address}\" }})",
+        g.x, g.y
+    ));
+}
+
+fn hypr_focus(address: &str) {
+    hypr_dispatch(&format!("hl.dsp.window.alter_zorder({{ mode = \"top\", window = \"address:{address}\" }})"));
+    hypr_dispatch(&format!("hl.dsp.focus({{ window = \"address:{address}\" }})"));
+}
+
+/// Show the main note, then put it back at the last saved size and position.
+/// The first launch, with nothing saved, uses the top-right of the focused monitor.
+fn reveal_main(w: &tauri::WebviewWindow) {
+    let g = load_geometry().unwrap_or_else(default_for_builtin_monitor);
+    let _ = w.set_size(tauri::LogicalSize::new(g.width, g.height));
+    let _ = w.set_position(tauri::LogicalPosition::new(g.x, g.y));
+    let _ = w.show();
+    let _ = w.set_focus();
+    std::thread::spawn(move || {
+        // WebKit can take a moment to map the window. Wait until Hyprland lists it, then
+        // place it once. A single absolute move sticks; resizing again afterwards shifts it.
+        for _ in 0..60 {
+            if let Some(client) = main_slip_box() {
+                if client.mapped && !client.hidden {
+                    hypr_place(&client.address, g);
+                    std::thread::sleep(Duration::from_millis(80));
+                    if let Some(settled) = main_slip_box() {
+                        if settled.geometry.x != g.x || settled.geometry.y != g.y {
+                            hypr_dispatch(&format!(
+                                "hl.dsp.window.move({{ x = {}, y = {}, relative = false, window = \"address:{}\" }})",
+                                g.x, g.y, settled.address
+                            ));
+                        }
+                        hypr_focus(&settled.address);
+                    }
+                    GEOMETRY_READY.store(true, Ordering::Relaxed);
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        if let Some(client) = main_slip_box() {
+            if client.mapped && !client.hidden {
+                save_geometry(&client.geometry);
+            }
+        }
+    });
+}
+
+fn remember_geometry_changes() {
+    std::thread::spawn(|| {
+        let mut last = load_geometry();
+        loop {
+            std::thread::sleep(Duration::from_millis(400));
+            if !GEOMETRY_READY.load(Ordering::Relaxed) {
+                continue;
+            }
+            if let Some(client) = main_slip_box() {
+                if client.mapped && !client.hidden && client.geometry.width >= 80 && last != Some(client.geometry) {
+                    save_geometry(&client.geometry);
+                    last = Some(client.geometry);
+                }
+            }
+        }
+    });
 }
 
 fn handle_action(app: &AppHandle, action: &str) {
@@ -591,9 +776,8 @@ fn handle_action(app: &AppHandle, action: &str) {
         }
         "search" => open_switcher(app),
         "new" => {
-            if let Some((w, false)) = floating_main(app, None) {
-                let _ = w.show();
-                let _ = w.set_focus();
+            if let Some((w, _)) = floating_main(app, None) {
+                reveal_main(&w);
                 let _ = w.emit_to(w.label(), "new-note", ());
             }
         }
@@ -765,6 +949,7 @@ pub fn run() {
                 Ok(w) => *app.state::<AppState>().watcher.lock().unwrap() = Some(w),
                 Err(e) => eprintln!("slip: file watcher unavailable: {e}"),
             }
+            remember_geometry_changes();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

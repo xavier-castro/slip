@@ -85,7 +85,7 @@ hyprctl configerrors
 
 | Where | Key | Action |
 | --- | --- | --- |
-| Anywhere | Super N | Show or hide the notes window |
+| Anywhere | Super N | Show the notes window, or focus it if it is already open. Press it again while it is focused to hide it |
 | Anywhere | Super W | Hide Slip, or close any other window |
 | Anywhere | Super T | Tile the window, or float it again |
 | Editor | Ctrl K / Ctrl P | Search every note |
@@ -100,6 +100,8 @@ hyprctl configerrors
 | Editor | Ctrl X | Delete the note (system trash; toast to undo) |
 | Editor | Shift Insert | Paste from the clipboard |
 | Editor | Esc | Hide (main window) or close (any other) |
+
+The floating note opens at the top-right of the focused monitor, 460×420, just under the bar. Move or resize it and Slip keeps that place for the next time you show it.
 
 The first line is the title, and the file is named after it. A new note is a draft until the first keystroke. Leaving an untitled empty note removes its file.
 

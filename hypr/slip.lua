@@ -31,8 +31,9 @@ if close_key then
   end)
 end
 
--- Float, pin, size, and center apply when the window maps, so they match the initial title.
--- The main window is titled exactly "Slip"; other note windows are "Slip - <note title>".
+-- Float and pin apply when the window maps. Size and position are restored by Slip
+-- itself (default: 460×420 at the top-right of the built-in display). The main window
+-- is titled exactly "Slip"; other note windows are "Slip - <note title>".
 o.window({ class = "^slip$", title = "^Slip Search$" }, {
   tag = "-default-opacity",
   opacity = "1 1",
@@ -54,8 +55,6 @@ o.window({ class = "^slip$", title = "^Slip( - .*)?$" }, {
   opacity = "1 1",
   float = true,
   pin = true,
-  size = { 960, 720 },
-  center = true,
   focus_on_activate = false,
 })
 

@@ -16,11 +16,11 @@
         "label": "main",
         "title": "Slip",
         "url": "index.html",
-        "width": 960,
-        "height": 720,
+        "width": 460,
+        "height": 420,
         "decorations": false,
         "visible": true,
-        "center": true
+        "center": false
       },
       {
         "label": "switcher",
